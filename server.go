@@ -47,6 +47,7 @@ import (
 	"github.com/stripe/veneur/sinks/datadog"
 	"github.com/stripe/veneur/sinks/debug"
 	"github.com/stripe/veneur/sinks/falconer"
+	"github.com/stripe/veneur/sinks/generic"
 	"github.com/stripe/veneur/sinks/kafka"
 	"github.com/stripe/veneur/sinks/lightstep"
 	"github.com/stripe/veneur/sinks/signalfx"
@@ -510,6 +511,22 @@ func NewFromConfig(logger *logrus.Logger, conf Config) (*Server, error) {
 			return ret, err
 		}
 		ret.metricSinks = append(ret.metricSinks, ddSink)
+	}
+
+	if conf.GenericEndpoint != "" {
+		gmSink, err := generic.NewGenericMetricSink(
+			log,
+			ret.HTTPClient,
+			conf.GenericEndpoint,
+			conf.GenericBatchSize,
+			conf.GenericSource,
+			conf.GenericEnvironment,
+			conf.GenericNamespace,
+		)
+		if err != nil {
+			return ret, err
+		}
+		ret.metricSinks = append(ret.metricSinks, gmSink)
 	}
 
 	// Configure tracing sinks

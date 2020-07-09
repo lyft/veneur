@@ -28,6 +28,11 @@ type Config struct {
 	FlushWatchdogMissedFlushes                int       `yaml:"flush_watchdog_missed_flushes"`
 	ForwardAddress                            string    `yaml:"forward_address"`
 	ForwardUseGrpc                            bool      `yaml:"forward_use_grpc"`
+	GenericEndpoint                           string    `yaml:"generic_endpoint"`
+	GenericBatchSize                          int       `yaml:"generic_batch_size"`
+	GenericSource                             string    `yaml:"generic_source"`
+	GenericEnvironment                        string    `yaml:"generic_environment"`
+	GenericNamespace                          string    `yaml:"generic_namespace"`
 	GrpcAddress                               string    `yaml:"grpc_address"`
 	Hostname                                  string    `yaml:"hostname"`
 	HTTPAddress                               string    `yaml:"http_address"`
