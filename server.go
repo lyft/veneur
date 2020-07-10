@@ -120,7 +120,7 @@ type Server struct {
 	shutdown chan struct{}
 	httpQuit bool
 
-	HistogramPercentiles []float64
+	HistogramPercentiles []samplers.Percentile
 
 	plugins   []plugins.Plugin
 	pluginMtx sync.Mutex
@@ -269,7 +269,9 @@ func NewFromConfig(logger *logrus.Logger, conf Config) (*Server, error) {
 	ret.synchronizeInterval = conf.SynchronizeWithInterval
 
 	ret.TagsAsMap = mappedTags
-	ret.HistogramPercentiles = conf.Percentiles
+	for _, per := range conf.Percentiles {
+		ret.HistogramPercentiles = append(ret.HistogramPercentiles, samplers.Percentile{Value: per})
+	}
 	ret.HistogramAggregates.Value = 0
 	for _, agg := range conf.Aggregates {
 		ret.HistogramAggregates.Value += samplers.AggregatesLookup[agg]

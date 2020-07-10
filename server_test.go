@@ -57,19 +57,30 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func defaultPercentiles() []float64 {
+	return []float64{.5, .75, .99}
+}
+
 // set up a boilerplate local config for later use
 func localConfig() Config {
-	return generateConfig("http://localhost")
+	return generateConfig("http://localhost", defaultPercentiles())
 }
 
 // set up a boilerplate global config for later use
 func globalConfig() Config {
-	return generateConfig("")
+	return generateConfig("", defaultPercentiles())
+}
+
+func percentileConfig(percentiles []float64) Config {
+	return generateConfig("", percentiles)
 }
 
 // generateConfig is not called config to avoid
 // accidental variable shadowing
-func generateConfig(forwardAddr string) Config {
+func generateConfig(
+	forwardAddr string,
+	percentiles []float64,
+) Config {
 	return Config{
 		Debug:    DebugMode,
 		Hostname: "localhost",
@@ -78,7 +89,7 @@ func generateConfig(forwardAddr string) Config {
 		Interval:              DefaultFlushInterval.String(),
 		DatadogAPIKey:         "",
 		MetricMaxLength:       4096,
-		Percentiles:           []float64{.5, .75, .99},
+		Percentiles:           percentiles,
 		Aggregates:            []string{"min", "max", "count"},
 		ReadBufferSizeBytes:   2097152,
 		StatsdListenAddresses: []string{"udp://localhost:0"},
@@ -122,6 +133,30 @@ func generateMetrics() (metricValues []float64, expectedMetrics map[string]float
 		"a.b.c.50percentile": 6,
 		"a.b.c.75percentile": 42,
 		"a.b.c.99percentile": 98,
+	}
+	return metricValues, expectedMetrics
+}
+
+func generatePercentileMetrics() (metricValues []float64, expectedMetrics map[string]float64) {
+	metricValues = []float64{1.0, 2.0, 7.0, 8.0, 100.0}
+
+	expectedMetrics = map[string]float64{
+		"a.b.c.max": 100,
+		"a.b.c.min": 1,
+
+		// Count is normalized by second
+		// so 5 values/50ms = 100 values/s
+		"a.b.c.count": float64(len(metricValues)) * float64(time.Second) / float64(DefaultFlushInterval),
+
+		// tdigest approximation causes this to be off by 1
+		"a.b.c.50percentile":      6,
+		"a.b.c.75percentile":      42,
+		"a.b.c.99percentile":      98,
+		"a.b.c.999percentile":     99,
+		"a.b.c.9999percentile":    99,
+		"a.b.c.99999percentile":   99,
+		"a.b.c.999999percentile":  99,
+		"a.b.c.9999999percentile": 99,
 	}
 	return metricValues, expectedMetrics
 }
@@ -292,6 +327,36 @@ func TestGlobalServerFlush(t *testing.T) {
 
 	interMetrics := <-metricsChan
 	assert.Equal(t, len(expectedMetrics), len(interMetrics), "incorrect number of elements in the flushed series on the remote server")
+}
+
+func TestHighPrecisionPercentiles(t *testing.T) {
+	metricValues, expectedMetrics := generatePercentileMetrics()
+	config := percentileConfig([]float64{0.5, 0.75, 0.99, 0.999, 0.9999, 0.99999, 0.999999, 0.9999999})
+
+	metricsChan := make(chan []samplers.InterMetric, 10)
+	cms, _ := NewChannelMetricSink(metricsChan)
+	defer close(metricsChan)
+
+	f := newFixture(t, config, cms, nil)
+	defer f.Close()
+
+	for _, value := range metricValues {
+		f.server.Workers[0].ProcessMetric(&samplers.UDPMetric{
+			MetricKey: samplers.MetricKey{
+				Name: "a.b.c",
+				Type: "histogram",
+			},
+			Value:      value,
+			Digest:     12345,
+			SampleRate: 1.0,
+			Scope:      samplers.LocalOnly,
+		})
+	}
+
+	f.server.Flush(context.TODO())
+
+	interMetrics := <-metricsChan
+	assert.Equal(t, len(expectedMetrics), len(interMetrics))
 }
 
 // TestLocalServerMixedMetrics ensures that stuff tagged as local only or local parts of mixed

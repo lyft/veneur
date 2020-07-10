@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +42,26 @@ func (ri RouteInformation) RouteTo(name string) bool {
 	}
 	_, ok := ri[name]
 	return ok
+}
+
+// Percentile contains a percentile's float value and string representation (e.g. "999").
+type Percentile struct {
+	Value       float64
+	stringValue string
+}
+
+// Lazily generate the percentile's string representation.
+func (p *Percentile) String() string {
+	if len(p.stringValue) == 0 {
+		v := p.Value
+		_, fraction := math.Modf(v)
+		for fraction > 0 {
+			v *= 10
+			_, fraction = math.Modf(v)
+		}
+		p.stringValue = strconv.Itoa(int(v))
+	}
+	return p.stringValue
 }
 
 // InterMetric represents a metric that has been completed and is ready for
@@ -508,7 +529,12 @@ func NewHist(Name string, Tags []string) *Histo {
 
 // Flush generates InterMetrics for the current state of the Histo. percentiles
 // indicates what percentiles should be exported from the histogram.
-func (h *Histo) Flush(interval time.Duration, percentiles []float64, aggregates HistogramAggregates, global bool) []InterMetric {
+func (h *Histo) Flush(
+	interval time.Duration,
+	percentiles []Percentile,
+	aggregates HistogramAggregates,
+	global bool,
+) []InterMetric {
 	now := time.Now().Unix()
 	metrics := make([]InterMetric, 0, aggregates.Count+len(percentiles))
 	sinks := routeInfo(h.Tags)
@@ -659,11 +685,10 @@ func (h *Histo) Flush(interval time.Duration, percentiles []float64, aggregates 
 		copy(tags, h.Tags)
 		metrics = append(
 			metrics,
-			// TODO Fix to allow for p999, etc
 			InterMetric{
-				Name:      fmt.Sprintf("%s.%dpercentile", h.Name, int(p*100)),
+				Name:      fmt.Sprintf("%s.%spercentile", h.Name, p.String()),
 				Timestamp: now,
-				Value:     float64(h.Value.Quantile(p)),
+				Value:     float64(h.Value.Quantile(p.Value)),
 				Tags:      tags,
 				Type:      GaugeMetric,
 				Sinks:     sinks,
