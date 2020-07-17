@@ -517,6 +517,7 @@ func NewFromConfig(logger *logrus.Logger, conf Config) (*Server, error) {
 		gmSink, err := generic.NewGenericMetricSink(
 			log,
 			ret.HTTPClient,
+			nil,
 			conf.GenericEndpoint,
 			conf.GenericBatchSize,
 			conf.GenericSource,
