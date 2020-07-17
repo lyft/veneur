@@ -95,12 +95,7 @@ func (gm *GenericMetricSink) Flush(ctx context.Context, metrics []samplers.Inter
 }
 
 func (gm *GenericMetricSink) flushBatch(metrics []samplers.InterMetric) {
-	genMetrics := GenericMetrics{
-		Metrics:     gm.convertInterToGeneric(metrics),
-		Environment: gm.Environment,
-		Namespace:   gm.Namespace,
-	}
-
+	genMetrics := gm.convertInterToGeneric(metrics)
 	err := vhttp.PostHelper(
 		context.TODO(),
 		gm.httpClient,
@@ -125,7 +120,7 @@ func (gm *GenericMetricSink) flushBatch(metrics []samplers.InterMetric) {
 	}
 }
 
-func (gm *GenericMetricSink) convertInterToGeneric(metrics []samplers.InterMetric) []GenericMetric {
+func (gm *GenericMetricSink) convertInterToGeneric(metrics []samplers.InterMetric) GenericMetrics {
 	var genMetrics []GenericMetric
 	for _, metric := range metrics {
 		inTags := append(metric.Tags, gm.Tags...)
@@ -139,7 +134,11 @@ func (gm *GenericMetricSink) convertInterToGeneric(metrics []samplers.InterMetri
 		}
 		genMetrics = append(genMetrics, genMetric)
 	}
-	return genMetrics
+	return GenericMetrics{
+		Environment: gm.Environment,
+		Namespace:   gm.Namespace,
+		Metrics:     genMetrics,
+	}
 }
 
 // FlushOtherSamples does nothing; currently this sink only supports metrics.
