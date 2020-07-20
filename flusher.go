@@ -65,7 +65,7 @@ func (s *Server) Flush(ctx context.Context) {
 	//   * Percentiles are only accurate when aggregated globally.
 	//   * Avoid double counting and breaking existing queries (if count is also
 	//     emitted globally, queries that sum over counts double!)
-	var percentiles []float64
+	var percentiles []samplers.Percentile
 	aggregates := s.HistogramAggregates
 	if !s.IsLocal() {
 		percentiles = s.HistogramPercentiles
@@ -166,7 +166,7 @@ type metricsSummary struct {
 // of metrics we'll be reporting, so that we can pre-allocate
 // a slice of the correct length instead of constantly appending
 // for performance
-func (s *Server) tallyMetrics(percentiles []float64) ([]WorkerMetrics, metricsSummary) {
+func (s *Server) tallyMetrics(percentiles []samplers.Percentile) ([]WorkerMetrics, metricsSummary) {
 	// allocating this long array to count up the sizes is cheaper than appending
 	// the []WorkerMetrics together one at a time
 	tempMetrics := make([]WorkerMetrics, 0, len(s.Workers))
@@ -222,7 +222,13 @@ func (s *Server) tallyMetrics(percentiles []float64) ([]WorkerMetrics, metricsSu
 // generateInterMetrics calls the Flush method on each
 // counter/gauge/histogram/timer/set in order to
 // generate an InterMetric corresponding to that value
-func (s *Server) generateInterMetrics(ctx context.Context, percentiles []float64, aggregates samplers.HistogramAggregates, tempMetrics []WorkerMetrics, ms metricsSummary) []samplers.InterMetric {
+func (s *Server) generateInterMetrics(
+	ctx context.Context,
+	percentiles []samplers.Percentile,
+	aggregates samplers.HistogramAggregates,
+	tempMetrics []WorkerMetrics,
+	ms metricsSummary,
+) []samplers.InterMetric {
 
 	span, _ := trace.StartSpanFromContext(ctx, "")
 	defer span.ClientFinish(s.TraceClient)
