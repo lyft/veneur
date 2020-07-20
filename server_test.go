@@ -137,30 +137,6 @@ func generateMetrics() (metricValues []float64, expectedMetrics map[string]float
 	return metricValues, expectedMetrics
 }
 
-func generatePercentileMetrics() (metricValues []float64, expectedMetrics map[string]float64) {
-	metricValues = []float64{1.0, 2.0, 7.0, 8.0, 100.0}
-
-	expectedMetrics = map[string]float64{
-		"a.b.c.max": 100,
-		"a.b.c.min": 1,
-
-		// Count is normalized by second
-		// so 5 values/50ms = 100 values/s
-		"a.b.c.count": float64(len(metricValues)) * float64(time.Second) / float64(DefaultFlushInterval),
-
-		// tdigest approximation causes this to be off by 1
-		"a.b.c.50percentile":      6,
-		"a.b.c.75percentile":      42,
-		"a.b.c.99percentile":      98,
-		"a.b.c.999percentile":     99,
-		"a.b.c.9999percentile":    99,
-		"a.b.c.99999percentile":   99,
-		"a.b.c.999999percentile":  99,
-		"a.b.c.9999999percentile": 99,
-	}
-	return metricValues, expectedMetrics
-}
-
 // setupVeneurServer creates a local server from the specified config
 // and starts listening for requests. It returns the server for
 // inspection.  If no metricSink or spanSink are provided then a
@@ -330,8 +306,21 @@ func TestGlobalServerFlush(t *testing.T) {
 }
 
 func TestHighPrecisionPercentiles(t *testing.T) {
-	metricValues, expectedMetrics := generatePercentileMetrics()
 	config := percentileConfig([]float64{0.5, 0.75, 0.99, 0.999, 0.9999, 0.99999, 0.999999, 0.9999999})
+	metricValues := []float64{1.0, 2.0, 7.0, 8.0, 100.0}
+	expectedNames := []string{
+		"a.b.c.max",
+		"a.b.c.min",
+		"a.b.c.count",
+		"a.b.c.50percentile",
+		"a.b.c.75percentile",
+		"a.b.c.99percentile",
+		"a.b.c.999percentile",
+		"a.b.c.9999percentile",
+		"a.b.c.99999percentile",
+		"a.b.c.999999percentile",
+		"a.b.c.9999999percentile",
+	}
 
 	metricsChan := make(chan []samplers.InterMetric, 10)
 	cms, _ := NewChannelMetricSink(metricsChan)
@@ -356,7 +345,10 @@ func TestHighPrecisionPercentiles(t *testing.T) {
 	f.server.Flush(context.TODO())
 
 	interMetrics := <-metricsChan
-	assert.Equal(t, len(expectedMetrics), len(interMetrics))
+	assert.Equal(t, len(expectedNames), len(interMetrics))
+	for i, expectedName := range expectedNames {
+		assert.Equal(t, expectedName, interMetrics[i].Name)
+	}
 }
 
 // TestLocalServerMixedMetrics ensures that stuff tagged as local only or local parts of mixed

@@ -55,7 +55,8 @@ func (p *Percentile) String() string {
 	if len(p.stringValue) == 0 {
 		v := p.Value
 		_, fraction := math.Modf(v)
-		for fraction > 0 {
+		// Ensure percentiles are at least 2 digits, trim rounding error:
+		for v < 10 || fraction > 0.01 {
 			v *= 10
 			_, fraction = math.Modf(v)
 		}
